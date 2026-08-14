@@ -11,41 +11,41 @@ Zeus is a Flutter mobile app for field staff — sales reps, service technicians
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="screenshots/01.png" width="200"/><br/>
+      <img src="app/screenshots/01.png" width="200"/><br/>
       <b>Sign In</b><br/>
       <sub>ERPNext-backed login with email or Employee ID</sub>
     </td>
     <td align="center" width="33%">
-      <img src="screenshots/02.png" width="200"/><br/>
+      <img src="app/screenshots/02.png" width="200"/><br/>
       <b>Home Dashboard</b><br/>
       <sub>Daily summary — attendance status, open tasks, and pending expenses at a glance</sub>
     </td>
     <td align="center" width="33%">
-      <img src="screenshots/03.png" width="200"/><br/>
+      <img src="app/screenshots/03.png" width="200"/><br/>
       <b>Attendance</b><br/>
       <sub>One-tap check-in/out with GPS capture, monthly summary, and history</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <img src="screenshots/04.png" width="200"/><br/>
+      <img src="app/screenshots/04.png" width="200"/><br/>
       <b>Task List</b><br/>
       <sub>Filter tasks by status — Open, In Progress, Completed, Blocked</sub>
     </td>
     <td align="center" width="33%">
-      <img src="screenshots/05.png" width="200"/><br/>
+      <img src="app/screenshots/05.png" width="200"/><br/>
       <b>Task Detail</b><br/>
       <sub>Interactive checklist, completion notes, and one-tap status updates</sub>
     </td>
     <td align="center" width="33%">
-      <img src="screenshots/06.png" width="200"/><br/>
+      <img src="app/screenshots/06.png" width="200"/><br/>
       <b>Expenses</b><br/>
       <sub>Submit claims by category with receipt tracking and approval status</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="33%">
-      <img src="screenshots/07.png" width="200"/><br/>
+      <img src="app/screenshots/07.png" width="200"/><br/>
       <b>Profile</b><br/>
       <sub>Personal info, monthly attendance stats, and app settings</sub>
     </td>
