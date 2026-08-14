@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="logo.png" width="250"/>
+</div>
+
 # Zeus — Field Staff Management
 
 > Track attendance, tasks, and on-ground activity in real time. Built for field teams running on ERPNext.
