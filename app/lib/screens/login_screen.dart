@@ -27,7 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.primary,
+      backgroundColor: AppTheme.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -37,29 +37,10 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Column(
                 children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: AppTheme.accent,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Icon(Icons.bolt, size: 44, color: AppTheme.primary),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Zeus',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 36,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Field Staff Management',
-                    style: TextStyle(color: AppTheme.accent, fontSize: 15),
+                  Image.asset(
+                    'assets/logo.png',
+                    width: 180,
+                    height: 180,
                   ),
                 ],
               ),
@@ -67,9 +48,10 @@ class _LoginScreenState extends State<LoginScreen> {
             const Spacer(),
             // Login card
             Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              decoration: BoxDecoration(
+                color: AppTheme.cardBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: const Border(top: BorderSide(color: AppTheme.divider)),
               ),
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
               child: Column(
