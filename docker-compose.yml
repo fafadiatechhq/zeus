@@ -1,0 +1,128 @@
+# Zeus — ERPNext Docker Compose
+# ─────────────────────────────────────────────────────────────────
+# Usage:
+#   docker compose up          # start everything (builds image first time)
+#   docker compose up --build  # rebuild image after code changes
+#   docker compose down -v     # stop and delete all volumes (full reset)
+#
+# Access: http://localhost:8000
+# Login:  Administrator / admin  (override ADMIN_PASSWORD in .env)
+# ─────────────────────────────────────────────────────────────────
+
+# Reusable defaults for every Zeus backend service
+x-zeus-backend: &zeus-backend
+  image: zeus-erpnext:latest
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment:
+    DB_HOST: db
+    DB_PORT: "3306"
+    REDIS_CACHE: redis-cache:6379
+    REDIS_QUEUE: redis-queue:6379
+    SOCKETIO_PORT: "9000"
+  volumes:
+    - sites:/home/frappe/frappe-bench/sites
+    - logs:/home/frappe/frappe-bench/logs
+  depends_on:
+    configurator:
+      condition: service_completed_successfully
+
+services:
+
+  # ── One-time site initialiser ──────────────────────────────────
+  # Creates the Frappe site, installs ERPNext + Zeus, seeds demo data.
+  # Runs once and exits — all other services wait for it to succeed.
+  configurator:
+    image: zeus-erpnext:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["bash", "-c"]
+    command: ["/usr/local/bin/zeus-init.sh"]
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SITE_NAME: ${SITE_NAME:-localhost}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    restart: "no"
+
+  # ── Web / API server ───────────────────────────────────────────
+  backend:
+    <<: *zeus-backend
+    command: bench serve --port 8000
+    ports:
+      - "8000:8000"
+
+  # ── Background job scheduler ───────────────────────────────────
+  scheduler:
+    <<: *zeus-backend
+    command: bench schedule
+
+  # ── Short / default queue worker ──────────────────────────────
+  worker-short:
+    <<: *zeus-backend
+    command: bench worker --queue short,default
+
+  # ── Long queue worker ─────────────────────────────────────────
+  worker-long:
+    <<: *zeus-backend
+    command: bench worker --queue long
+
+  # ── Socket.IO server (real-time updates in the ERPNext desk) ──
+  websocket:
+    <<: *zeus-backend
+    command: node /home/frappe/frappe-bench/apps/frappe/socketio.js
+    ports:
+      - "9000:9000"
+
+  # ── MariaDB ───────────────────────────────────────────────────
+  db:
+    image: mariadb:10.6
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root --password=${DB_ROOT_PASSWORD:-root_password} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # ── Redis (cache) ─────────────────────────────────────────────
+  redis-cache:
+    image: redis:7-alpine
+    volumes:
+      - redis-cache-data:/data
+
+  # ── Redis (queue / socketio) ──────────────────────────────────
+  redis-queue:
+    image: redis:7-alpine
+    volumes:
+      - redis-queue-data:/data
+
+volumes:
+  db-data:
+  sites:
+  logs:
+  redis-cache-data:
+  redis-queue-data:

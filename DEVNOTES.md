@@ -1,6 +1,6 @@
 # Zeus — Developer Notes
 
-Technical reference for engineers working on the Flutter app.
+Technical reference for engineers working on the Zeus codebase — Flutter mobile app and ERPNext backend.
 
 ---
 
@@ -201,3 +201,204 @@ For a permanent fix: Android Studio → Virtual Device Manager → Edit → Show
 ## Linting
 
 The project uses `flutter_lints` with the default recommended rule set (`analysis_options.yaml`). All commits must pass `flutter analyze` with zero issues.
+
+---
+
+---
+
+# ERPNext Backend
+
+Zeus is a custom [Frappe](https://frappeframework.com) app that runs on ERPNext v15. The backend is fully containerised — no local bench installation required.
+
+---
+
+## Running Locally (Docker)
+
+**Requirements:** Docker Desktop (or Engine + Compose plugin)
+
+```bash
+# First run — builds the image, creates the site, installs all apps, seeds demo data
+# Takes ~10–15 min on first boot; subsequent starts are instant
+docker compose up
+
+# Subsequent starts (no rebuild needed)
+docker compose up -d
+
+# Rebuild image after code changes to the zeus Python app
+docker compose up --build
+
+# Full reset — wipe all data and start fresh
+docker compose down -v && docker compose up
+```
+
+| Service | URL |
+|---|---|
+| ERPNext desk | http://localhost:8000 |
+| Socket.IO | http://localhost:9000 |
+
+**Default credentials**
+
+| Field | Value |
+|---|---|
+| Username | `Administrator` |
+| Password | `admin` |
+| Site name | `localhost` |
+
+Override via `.env` (copy from `.env` in repo root; never commit changes to `.env`).
+
+---
+
+## Repository Layout
+
+```
+zeus/                           # repo root
+├── Dockerfile                  # extends frappe/erpnext:v15 with Zeus pre-installed
+├── docker-compose.yml          # full stack: MariaDB, Redis, backend, workers, websocket
+├── docker/
+│   └── init.sh                 # one-time site setup: new-site → install-app → seed data
+├── .env                        # local overrides (SITE_NAME, DB_ROOT_PASSWORD, ADMIN_PASSWORD)
+├── pyproject.toml              # flit_core package metadata for the Zeus Python app
+├── app/                        # Flutter mobile app (see above)
+└── zeus/                       # Frappe/Python app root
+    ├── __init__.py             # exposes __version__ = "0.0.1"
+    ├── hooks.py                # Frappe app hooks (custom fields on Expense Claim, etc.)
+    ├── modules.txt             # declares module "Zeus"
+    ├── demo_data.py            # idempotent demo data seeder (see below)
+    └── zeus/                   # "Zeus" module directory (Frappe resolves doctypes here)
+        ├── doctype/
+        │   ├── zeus_site/                   # Zeus Site
+        │   ├── zeus_field_task/             # Zeus Field Task (+ checklist child)
+        │   ├── zeus_task_checklist_item/    # child of Zeus Field Task
+        │   ├── zeus_visit_log/              # Zeus Visit Log
+        │   ├── zeus_journey_plan/           # Zeus Journey Plan (+ stops child)
+        │   ├── zeus_journey_plan_stop/      # child of Zeus Journey Plan
+        │   └── zeus_attendance_regularization/
+        └── workspace/
+            └── zeus/
+                └── zeus.json   # Zeus workspace definition (auto-loaded on install)
+```
+
+> **Frappe app layout rule:** DocTypes must live inside the *module* subdirectory (`zeus/zeus/doctype/`), not the package root (`zeus/doctype/`). Frappe resolves the "Zeus" module to `apps/zeus/zeus/zeus/` in the container — putting files at the package root causes Frappe to look for controllers at `frappe.core.doctype.*`.
+
+---
+
+## DocTypes
+
+| DocType | Description | Key fields |
+|---|---|---|
+| **Zeus Site** | Physical location / customer site with geofence | `site_name`, `customer`, `latitude`, `longitude`, `geofence_radius_meters`, `is_active` |
+| **Zeus Field Task** | Task assigned to a field employee | `title`, `assigned_to`, `assigned_by`, `status`, `priority`, `due_date`, `site`, `customer`, `requires_geo_verification`, `checklist` (child) |
+| **Zeus Task Checklist Item** | Child row of Zeus Field Task | `label`, `is_done` |
+| **Zeus Visit Log** | GPS-stamped record of a field visit | `employee`, `visit_datetime`, `site`, `customer`, `purpose`, `notes`, `latitude`, `longitude` |
+| **Zeus Journey Plan** | Planned route for a field employee for a day | `employee`, `plan_date`, `status`, `stops` (child) |
+| **Zeus Journey Plan Stop** | Child row of Zeus Journey Plan | `sequence`, `stop_type`, `site`, `customer`, `planned_time`, `actual_time`, `status` |
+| **Zeus Attendance Regularization** | Request to correct a missed/wrong punch | `employee`, `attendance_date`, `regularization_type`, `reason`, `requested_check_in`, `requested_check_out`, `status`, `approver` |
+
+**Custom fields added to ERPNext DocTypes** (defined in `hooks.py`):
+
+| DocType | Field | Type | Purpose |
+|---|---|---|---|
+| Expense Claim | `zeus_section` | Section Break | Groups Zeus fields |
+| Expense Claim | `zeus_task` | Link → Zeus Field Task | Links expense to a field task |
+| Expense Claim | `zeus_visit_log` | Link → Zeus Visit Log | Links expense to a visit |
+
+---
+
+## Demo Data
+
+The `configurator` service runs `docker/init.sh` once on first boot. After installing apps it calls the seeder:
+
+```bash
+bench --site localhost execute zeus.demo_data.seed
+```
+
+The seeder is **idempotent** — safe to re-run; it skips records that already exist.
+
+**What gets seeded:**
+
+| Entity | Records |
+|---|---|
+| Company | Zeus Demo Co |
+| Employees | Priya Patel (manager), Ravi Sharma, Ankit Mehta, Deepa Nair |
+| Customers | Sunrise Industries Pvt Ltd, Metro Electronics, City Hospital, Green Valley Farms |
+| Zeus Sites | 5 Mumbai-area sites with coordinates and geofence radii |
+| Zeus Field Tasks | 6 tasks (Open, In Progress, Completed, Blocked) with checklists |
+| Zeus Visit Logs | 4 recent visit records |
+| Zeus Journey Plans | 2 plans (Draft and Active) with stops |
+
+To remove all seeded data:
+
+```bash
+bench --site localhost execute zeus.demo_data.teardown
+```
+
+---
+
+## Workspace
+
+The Zeus workspace (`zeus/zeus/workspace/zeus/zeus.json`) is loaded automatically when the app is installed. It appears as **Zeus ⚡** in the ERPNext sidebar and provides:
+
+**Shortcuts** (live record counts):
+- Zeus Field Task — Open/In Progress/Blocked count
+- Zeus Visit Log
+- Zeus Journey Plan — Active count
+- Zeus Site
+- Zeus Attendance Regularization — Pending count
+
+**Cards** (links to lists):
+- *Field Operations* — Field Tasks, Visit Logs, Journey Plans
+- *Masters* — Sites, Employees, Customers
+- *HR & Attendance* — Attendance Regularizations
+
+---
+
+## Making Backend Changes
+
+**Add a new DocType**
+
+Place it in `zeus/zeus/doctype/<doctype_name>/` (the inner `zeus/zeus/` module directory). Then rebuild and full-reset:
+
+```bash
+docker compose build && docker compose down -v && docker compose up
+```
+
+Or, if the site already exists, just migrate:
+
+```bash
+docker compose exec backend bench --site localhost migrate
+```
+
+**Edit a DocType in the desk**
+
+Make changes in the ERPNext desk, then export:
+
+```bash
+docker compose exec backend bash -c "cd /home/frappe/frappe-bench && \
+  bench --site localhost export-fixtures --app zeus"
+```
+
+This writes the updated JSON back to the repo inside the container. Copy it out with `docker cp`.
+
+**Run a bench command**
+
+```bash
+docker compose exec backend bash -c "cd /home/frappe/frappe-bench && bench --site localhost <command>"
+```
+
+**Open a Frappe console**
+
+```bash
+docker compose exec backend bash -c "cd /home/frappe/frappe-bench && bench --site localhost console"
+```
+
+---
+
+## Environment Variables
+
+All variables are set in `.env` at the repo root (copy from the committed `.env` file):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SITE_NAME` | `localhost` | Frappe site name — must match the HTTP Host header |
+| `DB_ROOT_PASSWORD` | `root_password` | MariaDB root password |
+| `ADMIN_PASSWORD` | `admin` | ERPNext Administrator password |

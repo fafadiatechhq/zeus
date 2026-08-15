@@ -1,0 +1,179 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"zeus-hdr-shortcuts\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"zeus-sc-task\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Zeus Field Task\",\"col\":3}},{\"id\":\"zeus-sc-visit\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Zeus Visit Log\",\"col\":3}},{\"id\":\"zeus-sc-journey\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Zeus Journey Plan\",\"col\":3}},{\"id\":\"zeus-sc-site\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Zeus Site\",\"col\":3}},{\"id\":\"zeus-sc-reg\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Zeus Attendance Regularization\",\"col\":3}},{\"id\":\"zeus-spacer-1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"zeus-hdr-masters\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Masters</b></span>\",\"col\":12}},{\"id\":\"zeus-card-ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Field Operations\",\"col\":4}},{\"id\":\"zeus-card-masters\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":4}},{\"id\":\"zeus-card-hr\",\"type\":\"card\",\"data\":{\"card_name\":\"HR & Attendance\",\"col\":4}}]",
+ "creation": "2026-08-15 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "⚡",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Zeus",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Field Operations",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Zeus Field Task",
+   "link_count": 0,
+   "link_to": "Zeus Field Task",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Zeus Visit Log",
+   "link_count": 0,
+   "link_to": "Zeus Visit Log",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Zeus Journey Plan",
+   "link_count": 0,
+   "link_to": "Zeus Journey Plan",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Masters",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Zeus Site",
+   "link_count": 0,
+   "link_to": "Zeus Site",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Employee",
+   "link_count": 0,
+   "link_to": "Employee",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Customer",
+   "link_count": 0,
+   "link_to": "Customer",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "HR & Attendance",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Zeus Attendance Regularization",
+   "link_count": 0,
+   "link_to": "Zeus Attendance Regularization",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Zeus Task Checklist Item",
+   "link_count": 0,
+   "link_to": "Zeus Task Checklist Item",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-08-15 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Zeus",
+ "name": "Zeus",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [],
+ "sequence_id": 99.0,
+ "shortcuts": [
+  {
+   "color": "Orange",
+   "format": "{} Open",
+   "label": "Zeus Field Task",
+   "link_to": "Zeus Field Task",
+   "stats_filter": "{\"status\": [\"in\", [\"Open\", \"In Progress\", \"Blocked\"]]}",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "label": "Zeus Visit Log",
+   "link_to": "Zeus Visit Log",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "format": "{} Active",
+   "label": "Zeus Journey Plan",
+   "link_to": "Zeus Journey Plan",
+   "stats_filter": "{\"status\": \"Active\"}",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "label": "Zeus Site",
+   "link_to": "Zeus Site",
+   "type": "DocType"
+  },
+  {
+   "color": "Yellow",
+   "format": "{} Pending",
+   "label": "Zeus Attendance Regularization",
+   "link_to": "Zeus Attendance Regularization",
+   "stats_filter": "{\"status\": \"Pending\"}",
+   "type": "DocType"
+  }
+ ],
+ "title": "Zeus"
+}

@@ -1,0 +1,35 @@
+# Flutter mobile app — not needed in the ERPNext Docker image
+app/
+
+# Git metadata
+.git/
+.gitignore
+.gitattributes
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Docker files (the init script inside docker/ IS needed at build time)
+Dockerfile
+docker-compose.yml
+
+# Dev / editor artefacts
+.env
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Docs and media (README.md is kept — flit_core requires it alongside pyproject.toml)
+DEVNOTES.md
+*.png
+*.jpg
+*.jpeg
+screenshots/

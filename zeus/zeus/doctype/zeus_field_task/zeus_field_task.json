@@ -1,0 +1,229 @@
+{
+ "actions": [],
+ "autoname": "ZEUS-TASK-.YYYY.-.#####",
+ "creation": "2026-08-15 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "status",
+  "column_break_meta",
+  "priority",
+  "due_date",
+  "section_break_assignment",
+  "assigned_to",
+  "assigned_by",
+  "column_break_links",
+  "customer",
+  "site",
+  "section_break_desc",
+  "description",
+  "section_break_geo",
+  "requires_geo_verification",
+  "section_break_checklist",
+  "checklist",
+  "section_break_completion",
+  "completion_notes",
+  "completion_photo",
+  "column_break_completion_gps",
+  "completion_time",
+  "completion_latitude",
+  "completion_longitude"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nIn Progress\nCompleted\nBlocked",
+   "default": "Open",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_meta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "label": "Priority",
+   "options": "Low\nMedium\nHigh\nUrgent",
+   "default": "Medium",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Datetime",
+   "label": "Due Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "section_break_assignment",
+   "fieldtype": "Section Break",
+   "label": "Assignment"
+  },
+  {
+   "fieldname": "assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "assigned_by",
+   "fieldtype": "Link",
+   "label": "Assigned By",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "column_break_links",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "site",
+   "fieldtype": "Link",
+   "label": "Site",
+   "options": "Zeus Site"
+  },
+  {
+   "fieldname": "section_break_desc",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_break_geo",
+   "fieldtype": "Section Break",
+   "label": "Geo Verification"
+  },
+  {
+   "fieldname": "requires_geo_verification",
+   "fieldtype": "Check",
+   "label": "Requires Geo Verification",
+   "description": "If enabled, staff must be within the site geofence radius to mark this task complete"
+  },
+  {
+   "fieldname": "section_break_checklist",
+   "fieldtype": "Section Break",
+   "label": "Checklist"
+  },
+  {
+   "fieldname": "checklist",
+   "fieldtype": "Table",
+   "label": "Checklist",
+   "options": "Zeus Task Checklist Item"
+  },
+  {
+   "fieldname": "section_break_completion",
+   "fieldtype": "Section Break",
+   "label": "Completion Details"
+  },
+  {
+   "fieldname": "completion_notes",
+   "fieldtype": "Small Text",
+   "label": "Completion Notes",
+   "read_only": 0
+  },
+  {
+   "fieldname": "completion_photo",
+   "fieldtype": "Attach Image",
+   "label": "Completion Photo"
+  },
+  {
+   "fieldname": "column_break_completion_gps",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "completion_time",
+   "fieldtype": "Datetime",
+   "label": "Completion Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completion_latitude",
+   "fieldtype": "Float",
+   "label": "Completion Latitude",
+   "precision": "8",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completion_longitude",
+   "fieldtype": "Float",
+   "label": "Completion Longitude",
+   "precision": "8",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-15 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Zeus",
+ "name": "Zeus Field Task",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "role": "Employee"
+  }
+ ],
+ "sort_field": "due_date",
+ "sort_order": "ASC",
+ "states": [
+  {
+   "color": "Blue",
+   "title": "Open"
+  },
+  {
+   "color": "Yellow",
+   "title": "In Progress"
+  },
+  {
+   "color": "Green",
+   "title": "Completed"
+  },
+  {
+   "color": "Red",
+   "title": "Blocked"
+  }
+ ],
+ "title_field": "title",
+ "track_changes": 1
+}

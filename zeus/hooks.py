@@ -5,6 +5,34 @@ app_description = "Zeus strengthens ERPNext with powerful field staff management
 app_email = "customercare@fafadiatech.com"
 app_license = "mit"
 
+# Custom fields added to native ERPNext DocTypes
+# ------------------------------------------------
+# Links Expense Claim records back to Zeus field activity
+custom_fields = {
+	"Expense Claim": [
+		{
+			"fieldname": "zeus_section",
+			"fieldtype": "Section Break",
+			"label": "Zeus Field Activity",
+			"insert_after": "task",
+		},
+		{
+			"fieldname": "zeus_task",
+			"fieldtype": "Link",
+			"label": "Zeus Task",
+			"options": "Zeus Field Task",
+			"insert_after": "zeus_section",
+		},
+		{
+			"fieldname": "zeus_visit_log",
+			"fieldtype": "Link",
+			"label": "Zeus Visit Log",
+			"options": "Zeus Visit Log",
+			"insert_after": "zeus_task",
+		},
+	]
+}
+
 # Apps
 # ------------------
 
