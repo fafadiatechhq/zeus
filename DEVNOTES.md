@@ -352,6 +352,90 @@ The Zeus workspace (`zeus/zeus/workspace/zeus/zeus.json`) is loaded automaticall
 
 ---
 
+## API Endpoints
+
+All endpoints are Frappe whitelisted methods, callable at:
+
+```
+POST /api/method/zeus.api.<module>.<function>
+```
+
+Pass parameters as JSON body or form fields. Frappe returns `{ "message": <result> }`.
+
+Authentication uses Frappe session cookies or API key/secret headers (`Authorization: token <api_key>:<api_secret>`).
+
+---
+
+### Sites — `zeus.api.site`
+
+| Function | Parameters | Description |
+|---|---|---|
+| `get_sites` | `customer?`, `is_active?=1` | List sites |
+| `get_site` | `site_name` | Single site |
+| `create_site` | `site_name`, `address?`, `latitude?`, `longitude?`, `geofence_radius_meters?`, `customer?`, `is_active?` | Create site |
+| `update_site` | `site_name`, any writable field | Patch site fields |
+
+---
+
+### Field Tasks — `zeus.api.task`
+
+| Function | Parameters | Description |
+|---|---|---|
+| `get_tasks` | `assigned_to?`, `status?`, `priority?`, `site?`, `due_date?` | List tasks with filters |
+| `get_my_tasks` | `status?` | Tasks for the logged-in employee |
+| `get_task` | `task_name` | Full task doc including checklist rows |
+| `create_task` | `title`, `due_date`, `assigned_to`, `status?`, `priority?`, `assigned_by?`, `customer?`, `site?`, `description?`, `requires_geo_verification?`, `checklist?` | Create task; `checklist` is a JSON array of `{label, is_done}` |
+| `update_task_status` | `task_name`, `status` | Transition status (Open / In Progress / Completed / Blocked) |
+| `complete_task` | `task_name`, `latitude?`, `longitude?`, `completion_notes?`, `completion_photo?` | Mark complete; lat/lng required if `requires_geo_verification=1` |
+| `update_checklist_item` | `task_name`, `item_name`, `is_done` | Toggle a single checklist row |
+
+---
+
+### Visit Logs — `zeus.api.visit_log`
+
+| Function | Parameters | Description |
+|---|---|---|
+| `get_visit_logs` | `employee?`, `customer?`, `site?`, `from_date?`, `to_date?` | List logs |
+| `get_visit_log` | `log_name` | Single visit log |
+| `create_visit_log` | `visit_datetime`, `customer?`, `site?`, `purpose?`, `notes?`, `photo?`, `latitude?`, `longitude?`, `linked_task?`, `employee?` | Log a visit; defaults employee to current user |
+
+---
+
+### Journey Plans — `zeus.api.journey_plan`
+
+| Function | Parameters | Description |
+|---|---|---|
+| `get_journey_plans` | `employee?`, `status?`, `plan_date?` | List plans |
+| `get_my_plan_today` | — | Today's Active or Draft plan for logged-in employee |
+| `get_journey_plan` | `plan_name` | Full plan with stops |
+| `create_journey_plan` | `plan_date`, `stops`, `employee?` | Create plan; `stops` is a JSON array of `{sequence, stop_type, linked_task?, site?, customer?, planned_time?}` |
+| `activate_journey_plan` | `plan_name` | Draft → Active |
+| `complete_stop` | `plan_name`, `stop_name`, `latitude?`, `longitude?`, `actual_time?` | Mark stop Completed; auto-completes plan when all stops done |
+| `skip_stop` | `plan_name`, `stop_name` | Mark stop Skipped; same auto-complete logic |
+
+---
+
+### Attendance Regularization — `zeus.api.attendance`
+
+| Function | Parameters | Description |
+|---|---|---|
+| `get_regularizations` | `employee?`, `status?`, `from_date?`, `to_date?` | List requests |
+| `get_regularization` | `reg_name` | Single request |
+| `create_regularization` | `attendance_date`, `regularization_type`, `reason`, `requested_check_in?`, `requested_check_out?`, `employee?` | Submit regularization; defaults to current user |
+| `approve_regularization` | `reg_name`, `approver_remarks?` | Approve and trigger Attendance record creation |
+| `reject_regularization` | `reg_name`, `approver_remarks?` | Reject request |
+
+---
+
+### Mobile / Utility — `zeus.api.mobile`
+
+| Function | Parameters | Description |
+|---|---|---|
+| `get_dashboard` | — | Returns open tasks, today's journey plan, visit count, pending regularizations for the logged-in employee |
+| `geo_verify_site` | `site_name`, `latitude`, `longitude` | Returns `{distance_meters, geofence_radius_meters, within_geofence}` using Haversine formula |
+
+---
+
 ## Making Backend Changes
 
 **Add a new DocType**
