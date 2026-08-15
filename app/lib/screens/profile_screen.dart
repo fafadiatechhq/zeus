@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
-import '../data/mock_data.dart';
-import '../theme/app_theme.dart';
-import 'login_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ProfileScreen extends StatelessWidget {
+import '../models/attendance.dart';
+import '../providers/attendance_provider.dart';
+import '../providers/session_provider.dart';
+import '../theme/app_theme.dart';
+
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = MockData.currentUser;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(sessionProvider).valueOrNull;
+    final summary = ref.watch(monthlySummaryProvider).valueOrNull ?? const MonthlySummary();
+    if (user == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: ListView(
         children: [
-          // Header
           Container(
             color: AppTheme.primary,
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -48,13 +54,12 @@ class ProfileScreen extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          // Info section
           _SectionHeader(title: 'Contact Information'),
           _InfoTile(icon: Icons.email_outlined, label: 'Email', value: user.email),
-          _InfoTile(icon: Icons.phone_outlined, label: 'Phone', value: user.phone),
+          _InfoTile(icon: Icons.phone_outlined, label: 'Phone', value: user.phone.isEmpty ? '—' : user.phone),
 
           _SectionHeader(title: 'Attendance This Month'),
-          _StatsTile(),
+          _StatsTile(summary: summary),
 
           _SectionHeader(title: 'Settings'),
           _ActionTile(icon: Icons.notifications_outlined, label: 'Notifications', onTap: () {}),
@@ -69,10 +74,7 @@ class ProfileScreen extends StatelessWidget {
             labelColor: AppTheme.danger,
             iconColor: AppTheme.danger,
             onTap: () {
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (_) => false,
-              );
+              ref.read(sessionProvider.notifier).logout();
             },
           ),
           const SizedBox(height: 32),
@@ -176,6 +178,10 @@ class _ActionTile extends StatelessWidget {
 }
 
 class _StatsTile extends StatelessWidget {
+  const _StatsTile({required this.summary});
+
+  final MonthlySummary summary;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -183,10 +189,10 @@ class _StatsTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         children: [
-          _StatCell(label: 'Present', value: '18', color: AppTheme.success),
-          _StatCell(label: 'Absent', value: '1', color: AppTheme.danger),
-          _StatCell(label: 'On Leave', value: '2', color: AppTheme.warning),
-          _StatCell(label: 'Working Days', value: '21', color: AppTheme.primary),
+          _StatCell(label: 'Present', value: '${summary.present}', color: AppTheme.success),
+          _StatCell(label: 'Absent', value: '${summary.absent}', color: AppTheme.danger),
+          _StatCell(label: 'On Leave', value: '${summary.leave}', color: AppTheme.warning),
+          _StatCell(label: 'Working Days', value: '${summary.workingDays}', color: AppTheme.primary),
         ],
       ),
     );

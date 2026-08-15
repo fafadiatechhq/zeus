@@ -65,9 +65,10 @@ echo "   ✓ Bench configured."
 
 # ── Step 4: Create site (first run only) ─────────────────────────
 echo "▶  [4/6] Checking site '$SITE_NAME' …"
+SITE_EXISTS=0
 if [ -f "$BENCH/sites/$SITE_NAME/site_config.json" ]; then
-    echo "   Site already exists — running migrate to sync schema …"
-    bench --site "$SITE_NAME" migrate --skip-failing 2>&1 | sed 's/^/   /'
+    echo "   Site already exists."
+    SITE_EXISTS=1
 else
     echo "   Creating site '$SITE_NAME' …"
     bench new-site "$SITE_NAME" \
@@ -77,39 +78,51 @@ else
         --no-mariadb-socket                    \
         --set-default 2>&1 | sed 's/^/   /'
 
-    # ── Step 5: Install apps ──────────────────────────────────────
-    echo "▶  [5/6] Installing apps …"
-
     echo "   Installing erpnext …"
     bench --site "$SITE_NAME" install-app erpnext 2>&1 | sed 's/^/   /'
-
-    # hrms is bundled in frappe/erpnext:v15; install if available
-    echo "   Installing hrms (if available) …"
-    bench --site "$SITE_NAME" install-app hrms 2>&1 | sed 's/^/   /' || \
-        echo "   hrms not present in image — skipping."
-
-    # Register zeus in apps.txt so bench install-app can find it.
-    # (We pip-installed it directly in the Dockerfile, bypassing bench get-app
-    #  which is the usual mechanism that writes this file.)
-    # printf ensures we always start on a fresh line — plain `echo >>` can
-    # concatenate with the previous entry if it lacked a trailing newline,
-    # turning "erpnext" + "zeus" into "erpnextzeus".
-    APPS_TXT="$BENCH/sites/apps.txt"
-    if ! grep -q "^zeus$" "$APPS_TXT" 2>/dev/null; then
-        printf '\nzeus\n' >> "$APPS_TXT"
-        echo "   Registered zeus in apps.txt"
-    fi
-
-    echo "   Installing zeus …"
-    bench --site "$SITE_NAME" install-app zeus 2>&1 | sed 's/^/   /'
-
-    # ── Step 6: Seed demo data ────────────────────────────────────
-    echo "▶  [6/6] Seeding Zeus demo data …"
-    bench --site "$SITE_NAME" execute zeus.demo_data.seed 2>&1 | sed 's/^/   /'
-
-    echo ""
-    echo "   ✓ Site setup complete."
+    echo "   ✓ Site created."
 fi
+
+# ── Step 5: Ensure required apps are registered and installed ─────
+# pip-install in the Dockerfile bypasses `bench get-app`, so apps.txt
+# (on the sites volume) may not list hrms/zeus yet. printf starts on a
+# fresh line so a missing trailing newline cannot concatenate names.
+# HRMS is required (Employee, Attendance, Expense Claim live there in v15).
+echo "▶  [5/6] Installing apps …"
+
+register_app() {
+    local app="$1"
+    local apps_txt="$BENCH/sites/apps.txt"
+    if ! grep -q "^${app}$" "$apps_txt" 2>/dev/null; then
+        printf '\n%s\n' "$app" >> "$apps_txt"
+        echo "   Registered $app in apps.txt"
+    fi
+}
+
+install_app() {
+    local app="$1"
+    if [ ! -d "$BENCH/apps/$app" ]; then
+        echo "   ERROR: $app is not in the image. Rebuild with: docker compose build"
+        exit 1
+    fi
+    register_app "$app"
+    echo "   Installing $app …"
+    bench --site "$SITE_NAME" install-app "$app" 2>&1 | sed 's/^/   /'
+}
+
+install_app hrms
+install_app zeus
+
+if [ "$SITE_EXISTS" = "1" ]; then
+    echo "   Migrating site to sync schema …"
+    bench --site "$SITE_NAME" migrate --skip-failing 2>&1 | sed 's/^/   /'
+fi
+
+echo "   ✓ Apps installed."
+
+# ── Step 6: Seed demo data (always; seeder is idempotent) ─────────
+echo "▶  [6/6] Seeding Zeus demo data …"
+bench --site "$SITE_NAME" execute zeus.demo_data.seed 2>&1 | sed 's/^/   /'
 
 # Always set host_name so the desk knows where it lives
 bench --site "$SITE_NAME" set-config host_name "http://$SITE_NAME"

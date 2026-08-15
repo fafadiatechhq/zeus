@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../data/mock_data.dart';
+
+import '../api/api_exception.dart';
 import '../models/expense.dart';
+import '../providers/expenses_provider.dart';
 import '../theme/app_theme.dart';
 
-class ExpenseFormScreen extends StatefulWidget {
+class ExpenseFormScreen extends ConsumerStatefulWidget {
   const ExpenseFormScreen({super.key});
 
   @override
-  State<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
+  ConsumerState<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
 }
 
-class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
+class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
@@ -21,6 +24,14 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _hasReceipt = false;
   bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -32,30 +43,40 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  void _save() async {
+  Future<void> _save({required bool submit}) async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    final newExpense = Expense(
-      id: 'exp_${DateTime.now().millisecondsSinceEpoch}',
-      userId: MockData.currentUser.id,
-      title: _titleController.text.trim(),
-      category: _selectedCategory,
-      amount: double.parse(_amountController.text.trim()),
-      date: _selectedDate,
-      status: ExpenseStatus.draft,
-      notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
-      hasReceipt: _hasReceipt,
-    );
-
-    MockData.expenses.insert(0, newExpense);
-
-    if (mounted) {
+    try {
+      await ref.read(expensesProvider.notifier).createExpense(
+            title: _titleController.text.trim(),
+            amount: double.parse(_amountController.text.trim()),
+            expenseDate: _selectedDate,
+            category: _selectedCategory,
+            notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+            submit: submit,
+          );
+      if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Expense saved as draft'), backgroundColor: AppTheme.success),
+        SnackBar(
+          content: Text(submit ? 'Expense submitted' : 'Expense saved as draft'),
+          backgroundColor: AppTheme.success,
+        ),
       );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message), backgroundColor: AppTheme.danger),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save expense. Try again.'), backgroundColor: AppTheme.danger),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -68,15 +89,12 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Title
             TextFormField(
               controller: _titleController,
               decoration: const InputDecoration(labelText: 'Title *', hintText: 'e.g. Auto to client office'),
               validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
             ),
             const SizedBox(height: 16),
-
-            // Amount
             TextFormField(
               controller: _amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -91,8 +109,6 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               },
             ),
             const SizedBox(height: 16),
-
-            // Category
             DropdownButtonFormField<ExpenseCategory>(
               initialValue: _selectedCategory,
               decoration: const InputDecoration(labelText: 'Category *'),
@@ -102,8 +118,6 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               onChanged: (v) => setState(() => _selectedCategory = v!),
             ),
             const SizedBox(height: 16),
-
-            // Date
             InkWell(
               onTap: _pickDate,
               child: InputDecorator(
@@ -115,8 +129,6 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Notes
             TextFormField(
               controller: _notesController,
               maxLines: 3,
@@ -126,8 +138,6 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Receipt toggle
             Card(
               child: SwitchListTile(
                 title: const Text('Receipt attached', style: TextStyle(fontSize: 14)),
@@ -138,30 +148,38 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               ),
             ),
             const SizedBox(height: 24),
-
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isSaving ? null : () => Navigator.pop(context),
                     child: const Text('Cancel'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   flex: 2,
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _save,
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : const Text('Save Expense'),
+                  child: OutlinedButton(
+                    onPressed: _isSaving ? null : () => _save(submit: false),
+                    child: const Text('Save Draft'),
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : () => _save(submit: true),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Submit Expense'),
+              ),
             ),
           ],
         ),

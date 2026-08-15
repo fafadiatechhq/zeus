@@ -31,7 +31,7 @@ x-zeus-backend: &zeus-backend
 services:
 
   # ── One-time site initialiser ──────────────────────────────────
-  # Creates the Frappe site, installs ERPNext + Zeus, seeds demo data.
+  # Creates the Frappe site, installs ERPNext + HRMS + Zeus, seeds demo data.
   # Runs once and exits — all other services wait for it to succeed.
   configurator:
     image: zeus-erpnext:latest

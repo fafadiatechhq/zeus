@@ -1,102 +1,101 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../data/mock_data.dart';
-import '../models/attendance.dart';
-import '../theme/app_theme.dart';
 
-class AttendanceScreen extends StatefulWidget {
+import '../api/api_exception.dart';
+import '../models/attendance.dart';
+import '../providers/attendance_provider.dart';
+import '../theme/app_theme.dart';
+import '../widgets/async_value_view.dart';
+
+class AttendanceScreen extends ConsumerStatefulWidget {
   const AttendanceScreen({super.key});
 
   @override
-  State<AttendanceScreen> createState() => _AttendanceScreenState();
+  ConsumerState<AttendanceScreen> createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends State<AttendanceScreen> {
-  late AttendanceRecord _today;
+class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _today = MockData.todayAttendance;
-  }
-
-  Future<void> _checkIn() async {
+  Future<void> _runAction(Future<void> Function() action, String successMessage, Color color) async {
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1500));
-    final updated = _today.copyWith(
-      status: AttendanceStatus.checkedIn,
-      checkInTime: DateTime.now(),
-      checkInLocation: 'Andheri East, Mumbai',
-    );
-    MockData.todayAttendance = updated;
-    setState(() {
-      _today = updated;
-      _isLoading = false;
-    });
-    if (mounted) {
+    try {
+      await action();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Checked in successfully'),
-          backgroundColor: AppTheme.success,
-        ),
+        SnackBar(content: Text(successMessage), backgroundColor: color),
       );
-    }
-  }
-
-  Future<void> _checkOut() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1500));
-    final updated = _today.copyWith(
-      status: AttendanceStatus.checkedOut,
-      checkOutTime: DateTime.now(),
-      checkOutLocation: 'Andheri East, Mumbai',
-    );
-    MockData.todayAttendance = updated;
-    setState(() {
-      _today = updated;
-      _isLoading = false;
-    });
-    if (mounted) {
+    } on ApiException catch (error) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Checked out successfully'),
-          backgroundColor: AppTheme.primaryDark,
-        ),
+        SnackBar(content: Text(error.message), backgroundColor: AppTheme.danger),
       );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Try again.'), backgroundColor: AppTheme.danger),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final history = MockData.attendanceHistory;
+    final attendance = ref.watch(attendanceProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Attendance')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Today's card
-          _TodayCard(
-            record: _today,
-            isLoading: _isLoading,
-            onCheckIn: _checkIn,
-            onCheckOut: _checkOut,
-          ),
-          const SizedBox(height: 24),
-
-          // This month summary
-          _MonthSummaryCard(),
-          const SizedBox(height: 24),
-
-          // History
-          const Text('Recent History', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-          const SizedBox(height: 12),
-          ...history.map((record) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _HistoryTile(record: record),
-              )),
-        ],
+      body: AsyncValueView(
+        value: attendance,
+        onRetry: () => ref.read(attendanceProvider.notifier).reload(),
+        builder: (data) {
+          return RefreshIndicator(
+            onRefresh: () => ref.read(attendanceProvider.notifier).reload(),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _TodayCard(
+                  record: data.today,
+                  isLoading: _isLoading,
+                  onCheckIn: () => _runAction(
+                    () => ref.read(attendanceProvider.notifier).checkIn(),
+                    'Checked in successfully',
+                    AppTheme.success,
+                  ),
+                  onCheckOut: () => _runAction(
+                    () => ref.read(attendanceProvider.notifier).checkOut(),
+                    'Checked out successfully',
+                    AppTheme.primaryDark,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _MonthSummaryCard(summary: data.monthly),
+                const SizedBox(height: 24),
+                const Text('Recent History',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                const SizedBox(height: 12),
+                if (data.history.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text('No attendance history yet', style: TextStyle(color: AppTheme.textSubtle)),
+                    ),
+                  )
+                else
+                  ...data.history.map(
+                    (record) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _HistoryTile(record: record),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -169,7 +168,7 @@ class _TodayCard extends StatelessWidget {
                   label: const Text('Check In'),
                 ),
               )
-            else if (!notCheckedIn && record.status != AttendanceStatus.checkedOut && record.status != AttendanceStatus.onLeave)
+            else if (record.status != AttendanceStatus.checkedOut && record.status != AttendanceStatus.onLeave)
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -262,6 +261,10 @@ class _StatusChip extends StatelessWidget {
 }
 
 class _MonthSummaryCard extends StatelessWidget {
+  const _MonthSummaryCard({required this.summary});
+
+  final MonthlySummary summary;
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -277,10 +280,10 @@ class _MonthSummaryCard extends StatelessWidget {
             const SizedBox(height: 14),
             Row(
               children: [
-                _SummaryTile(label: 'Present', value: '18', color: AppTheme.success),
-                _SummaryTile(label: 'Absent', value: '1', color: AppTheme.danger),
-                _SummaryTile(label: 'Leave', value: '2', color: AppTheme.warning),
-                _SummaryTile(label: 'Working Days', value: '21', color: AppTheme.primary),
+                _SummaryTile(label: 'Present', value: '${summary.present}', color: AppTheme.success),
+                _SummaryTile(label: 'Absent', value: '${summary.absent}', color: AppTheme.danger),
+                _SummaryTile(label: 'Leave', value: '${summary.leave}', color: AppTheme.warning),
+                _SummaryTile(label: 'Working Days', value: '${summary.workingDays}', color: AppTheme.primary),
               ],
             ),
           ],
@@ -324,6 +327,10 @@ class _HistoryTile extends StatelessWidget {
       case AttendanceStatus.checkedOut:
         statusColor = AppTheme.success;
         statusLabel = 'Present';
+        break;
+      case AttendanceStatus.checkedIn:
+        statusColor = AppTheme.primary;
+        statusLabel = 'Checked In';
         break;
       case AttendanceStatus.onLeave:
         statusColor = AppTheme.warning;

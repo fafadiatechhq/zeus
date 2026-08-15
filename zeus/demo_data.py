@@ -20,6 +20,8 @@ from frappe.utils import add_days, today
 
 COMPANY = None  # resolved at runtime from default company
 
+DEMO_PASSWORD = "zeus"
+
 EMPLOYEES = [
     {
         "_id": "demo-mgr-priya",
@@ -30,6 +32,8 @@ EMPLOYEES = [
         "date_of_birth": "1988-04-12",
         "date_of_joining": "2022-01-10",
         "_role": "manager",
+        "_email": "priya.patel@zeus.demo",
+        "cell_number": "9876500001",
     },
     {
         "_id": "demo-field-ravi",
@@ -40,6 +44,8 @@ EMPLOYEES = [
         "date_of_birth": "1995-07-23",
         "date_of_joining": "2023-03-15",
         "_role": "staff",
+        "_email": "ravi.sharma@zeus.demo",
+        "cell_number": "9876500002",
     },
     {
         "_id": "demo-field-ankit",
@@ -50,6 +56,8 @@ EMPLOYEES = [
         "date_of_birth": "1993-11-05",
         "date_of_joining": "2023-06-01",
         "_role": "staff",
+        "_email": "ankit.mehta@zeus.demo",
+        "cell_number": "9876500003",
     },
     {
         "_id": "demo-field-deepa",
@@ -60,6 +68,8 @@ EMPLOYEES = [
         "date_of_birth": "1997-02-18",
         "date_of_joining": "2024-01-20",
         "_role": "staff",
+        "_email": "deepa.nair@zeus.demo",
+        "cell_number": "9876500004",
     },
 ]
 
@@ -254,6 +264,12 @@ def _get_employee_name(emp_id):
     return frappe.db.get_value("Employee", {"employee_number": emp_id}, "name")
 
 
+def _demo_email(emp_def):
+    return emp_def.get("_email") or (
+        f"{emp_def['first_name'].lower()}.{emp_def['last_name'].lower()}@zeus.demo"
+    )
+
+
 def _log(msg):
     print(f"  [zeus-seed] {msg}")
 
@@ -262,29 +278,82 @@ def _log(msg):
 # Creators
 # ---------------------------------------------------------------------------
 
+def _ensure_employee_user(emp, emp_name):
+    """Create a User for the demo employee and link Employee.user_id.
+
+    Idempotent: existing users keep their password; missing roles and the
+    Employee link are still applied.
+    """
+    from zeus.api.utils import ROLE_FIELD_MANAGER, ROLE_FIELD_STAFF
+
+    email = _demo_email(emp)
+    zeus_role = ROLE_FIELD_MANAGER if emp["_role"] == "manager" else ROLE_FIELD_STAFF
+
+    if not frappe.db.exists("User", email):
+        user = frappe.get_doc(
+            {
+                "doctype": "User",
+                "email": email,
+                "first_name": emp["first_name"],
+                "last_name": emp["last_name"],
+                "enabled": 1,
+                "send_welcome_email": 0,
+                "user_type": "System User",
+                "new_password": DEMO_PASSWORD,
+            }
+        )
+        user.flags.ignore_password_policy = True
+        user.flags.no_welcome_mail = True
+        user.insert(ignore_permissions=True)
+        user.add_roles("Employee", zeus_role)
+        _log(f"  created User {email}")
+    else:
+        user = frappe.get_doc("User", email)
+        existing = {d.role for d in user.roles}
+        changed = False
+        for role in ("Employee", zeus_role):
+            if role not in existing:
+                user.append("roles", {"role": role})
+                changed = True
+        if changed:
+            user.save(ignore_permissions=True)
+        _log(f"  skip User {email} (already exists)")
+
+    values = {"user_id": email, "company_email": email}
+    if emp.get("cell_number") and frappe.get_meta("Employee").has_field("cell_number"):
+        values["cell_number"] = emp["cell_number"]
+    frappe.db.set_value("Employee", emp_name, values)
+
+
 def _seed_employees():
     _log("Creating demo employees …")
     company = _get_company()
     for emp in EMPLOYEES:
-        if frappe.db.exists("Employee", {"employee_number": emp["_id"]}):
+        emp_name = _get_employee_name(emp["_id"])
+        if emp_name:
             _log(f"  skip {_employee_full_name(emp)} (already exists)")
-            continue
-        doc = frappe.get_doc(
-            {
-                "doctype": "Employee",
-                "first_name": emp["first_name"],
-                "last_name": emp["last_name"],
-                "employee_number": emp["_id"],
-                "designation": emp.get("designation"),
-                "gender": emp["gender"],
-                "date_of_birth": emp.get("date_of_birth"),
-                "date_of_joining": emp["date_of_joining"],
-                "company": company,
-                "status": "Active",
-            }
-        )
-        doc.insert(ignore_permissions=True)
-        _log(f"  created {_employee_full_name(emp)} → {doc.name}")
+        else:
+            doc = frappe.get_doc(
+                {
+                    "doctype": "Employee",
+                    "first_name": emp["first_name"],
+                    "last_name": emp["last_name"],
+                    "employee_number": emp["_id"],
+                    "designation": emp.get("designation"),
+                    "gender": emp["gender"],
+                    "date_of_birth": emp.get("date_of_birth"),
+                    "date_of_joining": emp["date_of_joining"],
+                    "company": company,
+                    "status": "Active",
+                    "cell_number": emp.get("cell_number"),
+                    "company_email": _demo_email(emp),
+                }
+            )
+            doc.insert(ignore_permissions=True)
+            emp_name = doc.name
+            _log(f"  created {_employee_full_name(emp)} → {emp_name}")
+
+        _ensure_employee_user(emp, emp_name)
 
     # Set reports_to for field staff once all employees exist
     mgr_name = _get_employee_name("demo-mgr-priya")
@@ -706,9 +775,8 @@ def seed():
         # ERPNext modules
         "accounts": "erpnext", "buying": "erpnext", "selling": "erpnext",
         "stock": "erpnext", "setup": "erpnext", "crm": "erpnext",
-        # HR — may be erpnext (v14) or hrms (v15 split); try both
-        "hr": "hrms" if "hrms" in frappe.get_installed_apps() else "erpnext",
-        "payroll": "hrms" if "hrms" in frappe.get_installed_apps() else "erpnext",
+        "hr": "hrms",
+        "payroll": "hrms",
     }
     for module, app in _register_modules.items():
         if module not in frappe.local.module_app:
@@ -723,8 +791,7 @@ def seed():
         _seed_field_tasks()
         _seed_visit_logs()
         _seed_journey_plans()
-        # The following seeders depend on HR/HRMS doctypes that may not be
-        # present in every image; skip gracefully if unavailable.
+        # Attendance / expense seeders — skip gracefully on unexpected errors.
         try:
             _seed_employee_checkins()
         except Exception as e:
@@ -778,9 +845,16 @@ def teardown():
             "Employee", {"employee_number": ["in", emp_ids]}, pluck="name"
         )
         for name in emp_names:
+            frappe.db.set_value("Employee", name, "user_id", None)
             frappe.delete_doc("Employee", name, ignore_permissions=True, force=True)
         if emp_names:
             print(f"  deleted {len(emp_names)} Employee record(s)")
+
+        for emp in EMPLOYEES:
+            email = _demo_email(emp)
+            if frappe.db.exists("User", email):
+                frappe.delete_doc("User", email, ignore_permissions=True, force=True)
+                print(f"  deleted User {email}")
 
         # Demo customers
         cust_names = [c["customer_name"] for c in CUSTOMERS]

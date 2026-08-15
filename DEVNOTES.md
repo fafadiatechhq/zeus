@@ -20,6 +20,18 @@ flutter run               # picks up any connected device / running emulator
 flutter run -d <id>       # target a specific device (see flutter devices)
 ```
 
+The app talks to ERPNext at `http://localhost:8000`. Start the backend with `docker compose up` first.
+
+```bash
+# Android emulator or USB device — forward host port 8000 (Frappe site is "localhost")
+adb reverse tcp:8000 tcp:8000
+
+flutter run
+
+# Override URL / site name if needed
+flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8000 --dart-define=API_SITE_NAME=localhost
+```
+
 **Useful commands**
 ```bash
 flutter devices           # list connected devices and emulators
@@ -36,16 +48,36 @@ flutter build apk --debug # debug APK
 ```
 app/
 ├── lib/
-│   ├── main.dart               # Entry point — ZeusApp widget
+│   ├── main.dart               # Entry point — ProviderScope + AuthGate
+│   ├── api/
+│   │   ├── api_config.dart     # baseUrl / siteName from --dart-define
+│   │   ├── api_client.dart     # Dio + cookie jar + CSRF
+│   │   ├── api_exception.dart  # Frappe _server_messages parser
+│   │   └── json_util.dart      # payload coercion helpers
+│   ├── repositories/
+│   │   ├── auth_repository.dart
+│   │   ├── dashboard_repository.dart
+│   │   ├── attendance_repository.dart
+│   │   ├── task_repository.dart
+│   │   └── expense_repository.dart
+│   ├── providers/
+│   │   ├── session_provider.dart     # login / logout / session restore
+│   │   ├── api_providers.dart
+│   │   ├── dashboard_provider.dart
+│   │   ├── attendance_provider.dart  # today + history + monthly summary
+│   │   ├── tasks_provider.dart
+│   │   ├── expenses_provider.dart
+│   │   └── shell_provider.dart       # bottom-nav tab index
+│   ├── services/
+│   │   └── location_service.dart     # geolocator When-In-Use GPS
 │   ├── theme/
 │   │   └── app_theme.dart      # Single source of truth for ALL colors, text styles, component themes
 │   ├── models/
-│   │   ├── user.dart           # User model
+│   │   ├── user.dart           # User model (+ User.fromSession)
 │   │   ├── attendance.dart     # AttendanceRecord + AttendanceStatus enum
 │   │   ├── task.dart           # TaskItem, ChecklistItem, TaskStatus, TaskPriority enums
-│   │   └── expense.dart        # Expense, ExpenseStatus, ExpenseCategory enums
-│   ├── data/
-│   │   └── mock_data.dart      # In-memory mock data (replace with API layer)
+│   │   ├── expense.dart        # Expense, ExpenseStatus, ExpenseCategory enums
+│   │   └── dashboard.dart      # Home payload mapper
 │   ├── screens/
 │   │   ├── login_screen.dart
 │   │   ├── main_shell.dart     # Bottom nav host (IndexedStack)
@@ -57,6 +89,7 @@ app/
 │   │   ├── expense_form_screen.dart
 │   │   └── profile_screen.dart
 │   └── widgets/
+│       ├── async_value_view.dart # loading / error / retry wrapper
 │       ├── stat_card.dart      # Metric tile used on Home
 │       └── task_card.dart      # Task list item with priority dot, status badge, progress bar
 ├── screenshots/                # App screenshots for README
@@ -116,19 +149,18 @@ Add to `AppTheme.light` in `app_theme.dart`. Widgets automatically inherit via `
 
 ---
 
-## Mock Data
+## Live data sources
 
-All data currently lives in `lib/data/mock_data.dart` as static in-memory state.
+Login, session, home, attendance, tasks, expenses, and profile monthly stats all call Zeus Method APIs via Dio. GPS is required for check-in, check-out, and geo-verified task completion (`geolocator`, When-In-Use). Location is stored/displayed as lat/lng (no reverse geocoding). Check-in does not send `site_name`, so site geofence is not enforced from the app yet.
 
-| Field | Mock value |
+| Field | Source |
 |---|---|
-| Logged-in user | Rajesh Kumar, Field Sales Executive |
-| Today's attendance | Starts as `notCheckedIn`; mutated by check-in/out actions |
-| Attendance history | 4 past records (3 Present, 1 On Leave) |
-| Tasks | 5 tasks across all statuses (Open, In Progress, Completed, Blocked) |
-| Expenses | 5 expense records across all statuses (Draft, Submitted, Approved) |
-
-**Replacing with real API:** swap `MockData.*` references in each screen with repository/service calls. See [API Endpoints](#api-endpoints) for the Flutter v1 mapping (`login` / `get_session` / `get_dashboard` / attendance / tasks / expenses). The models (`User`, `AttendanceRecord`, `TaskItem`, `Expense`) are already shaped to map to ERPNext DocType fields — no structural change needed.
+| Logged-in user | `zeus.api.mobile.get_session` (`User.fromSession`) |
+| Home overview | `zeus.api.mobile.get_dashboard` |
+| Today's attendance | `get_today_attendance` / `checkin` / `checkout` |
+| Attendance history + month | `get_attendance_history` / `get_monthly_summary` |
+| Tasks | `get_my_tasks`, `get_task`, `update_task_status`, `update_checklist_item`, `complete_task` |
+| Expenses | `get_my_expenses`, `create_expense` (draft or submit) |
 
 ---
 
@@ -137,8 +169,9 @@ All data currently lives in `lib/data/mock_data.dart` as static in-memory state.
 The app uses a flat `BottomNavigationBar` hosted in `MainShell` with an `IndexedStack` so each tab preserves its scroll/state across tab switches.
 
 ```
-LoginScreen
-  └── MainShell (IndexedStack)
+AuthGate (session restore)
+  ├── LoginScreen          # guest
+  └── MainShell            # authenticated (IndexedStack)
         ├── [0] HomeScreen
         ├── [1] AttendanceScreen
         ├── [2] TasksScreen
@@ -152,9 +185,9 @@ LoginScreen
 
 ## State Management
 
-Currently using plain `StatefulWidget` + `setState`. State is shared by mutating `MockData` static fields directly (e.g. `MockData.todayAttendance = updated`). This is intentional for the mock phase — no external state management library is needed yet.
+Riverpod `AsyncNotifier`s per domain (`sessionProvider`, `dashboardProvider`, `attendanceProvider`, `tasksProvider`, `expensesProvider`, `monthlySummaryProvider`). `AuthGate` restores a persisted Frappe `sid` cookie via `get_session` on launch, then shows `LoginScreen` or `MainShell`. Mutations invalidate the dashboard (and the matching domain provider) so Home stays in sync.
 
-**When connecting to a real backend:** introduce a lightweight solution (Riverpod recommended for this scale) with repository classes per domain (AttendanceRepository, TaskRepository, ExpenseRepository). The screen widgets are already structured to make this a clean extraction.
+`shellTabIndexProvider` drives `MainShell` so Home **See all** can switch to the Tasks tab.
 
 ---
 
@@ -165,23 +198,29 @@ Currently using plain `StatefulWidget` + `setState`. State is shared by mutating
 | `flutter` | SDK | Framework |
 | `cupertino_icons` | `^1.0.8` | iOS-style icons |
 | `intl` | `^0.19.0` | Date/number formatting (`DateFormat`, `NumberFormat`) |
-
-No state management, routing, or HTTP packages yet — kept minimal for the mock phase.
+| `dio` | `^5.8.0` | HTTP client for Frappe Method API |
+| `cookie_jar` + `dio_cookie_manager` | `^4.0.8` / `^3.2.0` | Persist `sid` / `csrf_token` cookies |
+| `path_provider` | `^2.1.5` | Cookie jar storage directory |
+| `flutter_riverpod` | `^2.6.1` | Session + domain stores |
+| `geolocator` | `^13.0.4` | GPS for punches and geo-verified task completion |
 
 ---
 
-## Known Limitations (Mock Phase)
+## Known Limitations
 
-- **No persistence** — all state resets on hot restart. Check-in/out state survives hot reload only.
-- **No real GPS** — check-in location is a hardcoded string (`"Andheri East, Mumbai"`).
-- **No API calls** — all data is in-memory mock.
+- **No reverse geocoding** — punch location is shown as coordinates, not a place name.
+- **No site picker** — check-in/out omit `site_name`, so geofence is not enforced from the app.
+- **Receipt / completion photo** — expense receipt toggle is UI-only; `upload_file` is not wired.
 - **No push notifications** — not wired up.
 - **Android only** tested — iOS simulator should work but not validated.
-- **No auth** — login screen simulates a 1.2s delay then navigates unconditionally.
+- **Forgot password / change password** — UI stubs only.
+- **Journey plans, visit logs, regularization** — APIs exist; no mobile screens yet.
 
 ---
 
 ## Emulator Tips
+
+Set a fake GPS position in Android Studio → Extended Controls → Location before testing check-in (the emulator has no real GPS).
 
 If you hit `not enough space` on the Android emulator:
 ```bash
@@ -236,13 +275,22 @@ docker compose down -v && docker compose up
 | ERPNext desk | http://localhost:8000 |
 | Socket.IO | http://localhost:9000 |
 
-**Default credentials**
+**Default credentials (ERPNext desk)**
 
 | Field | Value |
 |---|---|
 | Username | `Administrator` |
 | Password | `admin` |
 | Site name | `localhost` |
+
+**Demo field users (mobile app)** — seeded by `zeus.demo_data.seed`, password `zeus` for all:
+
+| Email | Role |
+|---|---|
+| `ravi.sharma@zeus.demo` | Zeus Field Staff (default login prefill) |
+| `ankit.mehta@zeus.demo` | Zeus Field Staff |
+| `deepa.nair@zeus.demo` | Zeus Field Staff |
+| `priya.patel@zeus.demo` | Zeus Field Manager |
 
 Override via `.env` (copy from `.env` in repo root; never commit changes to `.env`).
 
@@ -252,10 +300,10 @@ Override via `.env` (copy from `.env` in repo root; never commit changes to `.en
 
 ```
 zeus/                           # repo root
-├── Dockerfile                  # extends frappe/erpnext:v15 with Zeus pre-installed
+├── Dockerfile                  # extends frappe/erpnext:v15 with HRMS + Zeus pre-installed
 ├── docker-compose.yml          # full stack: MariaDB, Redis, backend, workers, websocket
 ├── docker/
-│   └── init.sh                 # one-time site setup: new-site → install-app → seed data
+│   └── init.sh                 # one-time site setup: new-site → erpnext/hrms/zeus → seed data
 ├── .env                        # local overrides (SITE_NAME, DB_ROOT_PASSWORD, ADMIN_PASSWORD)
 ├── pyproject.toml              # flit_core package metadata for the Zeus Python app
 ├── app/                        # Flutter mobile app (see above)
@@ -319,6 +367,7 @@ The seeder is **idempotent** — safe to re-run; it skips records that already e
 | Entity | Records |
 |---|---|
 | Company | Zeus Demo Co |
+| Users | 4 accounts (`*.@zeus.demo`, password `zeus`) linked via `Employee.user_id` |
 | Employees | Priya Patel (manager), Ravi Sharma, Ankit Mehta, Deepa Nair |
 | Customers | Sunrise Industries Pvt Ltd, Metro Electronics, City Hospital, Green Valley Farms |
 | Zeus Sites | 5 Mumbai-area sites with coordinates and geofence radii |

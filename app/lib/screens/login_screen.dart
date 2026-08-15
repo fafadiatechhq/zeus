@@ -1,27 +1,57 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
-import 'main_shell.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class LoginScreen extends StatefulWidget {
+import '../api/api_exception.dart';
+import '../providers/session_provider.dart';
+import '../theme/app_theme.dart';
+
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController(text: 'rajesh.kumar@company.com');
-  final _passwordController = TextEditingController(text: 'password');
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _emailController = TextEditingController(text: 'ravi.sharma@zeus.demo');
+  final _passwordController = TextEditingController(text: 'zeus');
   bool _obscurePassword = true;
   bool _isLoading = false;
+  String? _error;
 
-  void _login() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainShell()),
-    );
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    final usr = _emailController.text.trim();
+    final pwd = _passwordController.text;
+    if (usr.isEmpty || pwd.isEmpty) {
+      setState(() => _error = 'Email / Employee ID and password are required');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      await ref.read(sessionProvider.notifier).login(usr, pwd);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Sign in failed. Try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -32,7 +62,6 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           children: [
             const Spacer(),
-            // Logo & branding
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Column(
@@ -46,7 +75,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             const Spacer(),
-            // Login card
             Container(
               decoration: BoxDecoration(
                 color: AppTheme.cardBg,
@@ -65,6 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    enabled: !_isLoading,
                     decoration: const InputDecoration(
                       labelText: 'Email / Employee ID',
                       prefixIcon: Icon(Icons.person_outline),
@@ -74,6 +104,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    enabled: !_isLoading,
+                    onSubmitted: (_) {
+                      if (!_isLoading) {
+                        _login();
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock_outline),
@@ -91,6 +128,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text('Forgot password?'),
                     ),
                   ),
+                  if (_error != null) ...[
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: AppTheme.danger, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 50,

@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../data/mock_data.dart';
+
 import '../models/expense.dart';
+import '../providers/expenses_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/async_value_view.dart';
 import 'expense_form_screen.dart';
 
-class ExpensesScreen extends StatefulWidget {
+class ExpensesScreen extends ConsumerWidget {
   const ExpensesScreen({super.key});
 
-  @override
-  State<ExpensesScreen> createState() => _ExpensesScreenState();
-}
+  Future<void> _openForm(BuildContext context, WidgetRef ref) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseFormScreen()));
+    ref.invalidate(expensesProvider);
+  }
 
-class _ExpensesScreenState extends State<ExpensesScreen> {
   @override
-  Widget build(BuildContext context) {
-    final expenses = MockData.expenses;
-    final totalPending = expenses
-        .where((e) => e.status == ExpenseStatus.draft || e.status == ExpenseStatus.submitted)
-        .fold(0.0, (sum, e) => sum + e.amount);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final expensesAsync = ref.watch(expensesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -26,65 +26,82 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () async {
-              await Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseFormScreen()));
-              setState(() {});
-            },
+            onPressed: () => _openForm(context, ref),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Summary card
-          Card(
-            color: AppTheme.primary,
-            child: Padding(
+      body: AsyncValueView(
+        value: expensesAsync,
+        onRetry: () => ref.read(expensesProvider.notifier).reload(),
+        builder: (expenses) {
+          final totalPending = expenses
+              .where((e) => e.status == ExpenseStatus.draft || e.status == ExpenseStatus.submitted)
+              .fold(0.0, (sum, e) => sum + e.amount);
+
+          return RefreshIndicator(
+            onRefresh: () => ref.read(expensesProvider.notifier).reload(),
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 28),
-                  const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Pending Approval', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      Text(
-                        NumberFormat.currency(symbol: '₹', decimalDigits: 0).format(totalPending),
-                        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
-                      ),
-                    ],
+              children: [
+                Card(
+                  color: AppTheme.primary,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 28),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Pending Approval', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                            Text(
+                              NumberFormat.currency(symbol: '₹', decimalDigits: 0).format(totalPending),
+                              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text('This Month', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                            Text(
+                              NumberFormat.currency(symbol: '₹', decimalDigits: 0)
+                                  .format(expenses.fold(0.0, (s, e) => s + e.amount)),
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const Spacer(),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('This Month', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                      Text(
-                        NumberFormat.currency(symbol: '₹', decimalDigits: 0)
-                            .format(expenses.fold(0.0, (s, e) => s + e.amount)),
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
-                      ),
-                    ],
+                ),
+                const SizedBox(height: 20),
+                const Text('Recent Expenses',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                const SizedBox(height: 12),
+                if (expenses.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(
+                      child: Text('No expenses yet', style: TextStyle(color: AppTheme.textSubtle)),
+                    ),
+                  )
+                else
+                  ...expenses.map(
+                    (expense) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _ExpenseTile(expense: expense),
+                    ),
                   ),
-                ],
-              ),
+              ],
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text('Recent Expenses', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-          const SizedBox(height: 12),
-          ...expenses.map((expense) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _ExpenseTile(expense: expense),
-              )),
-        ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseFormScreen()));
-          setState(() {});
-        },
+        onPressed: () => _openForm(context, ref),
         icon: const Icon(Icons.add),
         label: const Text('Add Expense'),
       ),
@@ -129,8 +146,7 @@ class _ExpenseTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(expense.category.label,
-                          style: const TextStyle(fontSize: 11, color: AppTheme.textSubtle)),
+                      Text(expense.category.label, style: const TextStyle(fontSize: 11, color: AppTheme.textSubtle)),
                       const Text(' · ', style: TextStyle(color: AppTheme.textSubtle)),
                       Text(DateFormat('d MMM').format(expense.date),
                           style: const TextStyle(fontSize: 11, color: AppTheme.textSubtle)),
