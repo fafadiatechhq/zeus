@@ -111,7 +111,12 @@ custom_fields = {
 # ------------
 
 # before_install = "zeus.install.before_install"
-# after_install = "zeus.install.after_install"
+after_install = "zeus.install.after_install"
+after_migrate = "zeus.install.after_migrate"
+
+fixtures = [
+	{"dt": "Role", "filters": [["name", "in", ["Zeus Field Staff", "Zeus Field Manager"]]]},
+]
 
 # Uninstallation
 # ------------
@@ -145,13 +150,25 @@ custom_fields = {
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+permission_query_conditions = {
+	"Zeus Field Task": "zeus.permissions.get_field_task_query_conditions",
+	"Zeus Visit Log": "zeus.permissions.get_visit_log_query_conditions",
+	"Zeus Journey Plan": "zeus.permissions.get_journey_plan_query_conditions",
+	"Zeus Attendance Regularization": "zeus.permissions.get_regularization_query_conditions",
+	"Employee Checkin": "zeus.permissions.get_employee_checkin_query_conditions",
+	"Attendance": "zeus.permissions.get_attendance_query_conditions",
+	"Expense Claim": "zeus.permissions.get_expense_claim_query_conditions",
+}
+
+has_permission = {
+	"Zeus Field Task": "zeus.permissions.has_field_task_permission",
+	"Zeus Visit Log": "zeus.permissions.has_visit_log_permission",
+	"Zeus Journey Plan": "zeus.permissions.has_journey_plan_permission",
+	"Zeus Attendance Regularization": "zeus.permissions.has_regularization_permission",
+	"Employee Checkin": "zeus.permissions.has_employee_checkin_permission",
+	"Attendance": "zeus.permissions.has_attendance_permission",
+	"Expense Claim": "zeus.permissions.has_expense_claim_permission",
+}
 
 # DocType Class
 # ---------------

@@ -1,11 +1,6 @@
 import frappe
 
-
-def _get_current_employee():
-	employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
-	if not employee:
-		frappe.throw(frappe._("No employee record linked to the current user"))
-	return employee
+from zeus.api.utils import get_current_employee
 
 
 @frappe.whitelist()
@@ -49,7 +44,7 @@ def create_visit_log(visit_datetime, customer=None, site=None, purpose=None,
 					notes=None, photo=None, latitude=None, longitude=None,
 					linked_task=None, employee=None):
 	if not employee:
-		employee = _get_current_employee()
+		employee = get_current_employee()
 
 	doc = frappe.get_doc({
 		"doctype": "Zeus Visit Log",

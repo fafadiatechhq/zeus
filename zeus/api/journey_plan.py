@@ -1,12 +1,7 @@
 import frappe
 from frappe.utils import today, now_datetime
 
-
-def _get_current_employee():
-	employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
-	if not employee:
-		frappe.throw(frappe._("No employee record linked to the current user"))
-	return employee
+from zeus.api.utils import get_current_employee
 
 
 @frappe.whitelist()
@@ -30,7 +25,7 @@ def get_journey_plans(employee=None, status=None, plan_date=None):
 
 @frappe.whitelist()
 def get_my_plan_today():
-	employee = _get_current_employee()
+	employee = get_current_employee()
 
 	plan_name = frappe.db.get_value(
 		"Zeus Journey Plan",
@@ -56,7 +51,7 @@ def get_journey_plan(plan_name):
 @frappe.whitelist()
 def create_journey_plan(plan_date, stops, employee=None):
 	if not employee:
-		employee = _get_current_employee()
+		employee = get_current_employee()
 
 	if isinstance(stops, str):
 		import json

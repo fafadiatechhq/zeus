@@ -63,7 +63,7 @@
   }
  ],
  "links": [],
- "modified": "2026-08-15 00:00:00.000000",
+ "modified": "2026-08-15 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Zeus",
  "name": "Zeus Journey Plan",
@@ -87,6 +87,19 @@
    "read": 1,
    "write": 1,
    "role": "Employee"
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Zeus Field Staff"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Zeus Field Manager"
   }
  ],
  "sort_field": "plan_date",

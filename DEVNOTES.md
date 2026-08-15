@@ -128,7 +128,7 @@ All data currently lives in `lib/data/mock_data.dart` as static in-memory state.
 | Tasks | 5 tasks across all statuses (Open, In Progress, Completed, Blocked) |
 | Expenses | 5 expense records across all statuses (Draft, Submitted, Approved) |
 
-**Replacing with real API:** swap `MockData.*` references in each screen with repository/service calls. The models (`User`, `AttendanceRecord`, `TaskItem`, `Expense`) are already shaped to map directly to ERPNext DocType fields — no structural change needed.
+**Replacing with real API:** swap `MockData.*` references in each screen with repository/service calls. See [API Endpoints](#api-endpoints) for the Flutter v1 mapping (`login` / `get_session` / `get_dashboard` / attendance / tasks / expenses). The models (`User`, `AttendanceRecord`, `TaskItem`, `Expense`) are already shaped to map to ERPNext DocType fields — no structural change needed.
 
 ---
 
@@ -354,19 +354,72 @@ The Zeus workspace (`zeus/zeus/workspace/zeus/zeus.json`) is loaded automaticall
 
 ## API Endpoints
 
-All endpoints are Frappe whitelisted methods, callable at:
+Zeus uses a **hybrid** contract: Frappe Resource API for CRUD/lookups, Method API (`/api/method/zeus.api.*`) for session-scoped, state-machine, geo, and aggregation calls.
 
 ```
 POST /api/method/zeus.api.<module>.<function>
+GET/POST/PUT/DELETE /api/resource/<DocType>[/<name>]
 ```
 
-Pass parameters as JSON body or form fields. Frappe returns `{ "message": <result> }`.
+Pass Method API parameters as JSON body or form fields. Frappe returns `{ "message": <result> }`.
 
-Authentication uses Frappe session cookies or API key/secret headers (`Authorization: token <api_key>:<api_secret>`).
+Authentication: session cookie (after login) or `Authorization: token <api_key>:<api_secret>`. Field users must have an **Employee** linked via `Employee.user_id`, plus role **Zeus Field Staff** (or **Zeus Field Manager**).
+
+### Recommended Flutter v1 mapping
+
+| Screen | Call |
+|---|---|
+| Sign in | `zeus.api.mobile.login` (email, username, or Employee ID) **or** Frappe `POST /api/method/login` for email/username only |
+| Session / profile | `zeus.api.mobile.get_session` |
+| Home | `zeus.api.mobile.get_dashboard` |
+| Tasks | `get_my_tasks`, `get_task`, `update_task_status`, `update_checklist_item`, `complete_task` |
+| Attendance | `checkin`, `checkout`, `get_today_attendance`, `get_attendance_history`, `get_monthly_summary` |
+| Expenses | `get_my_expenses`, `create_expense`, `submit_expense` |
+| Receipt / completion photo | Frappe `POST /api/method/upload_file`, then pass the file URL into `create_expense` / `complete_task` |
+| Change password | Frappe `frappe.core.doctype.user.user.update_password` |
+| Logout | Frappe `POST /api/method/logout` |
+| Customer / site pickers | `GET /api/resource/Customer`, `GET /api/resource/Zeus Site` |
+
+Do **not** complete a geo-verified task via Resource PUT — use `complete_task` so lat/lng are enforced.
+
+---
+
+### Reuse vs keep vs new
+
+**Reuse Frappe / ERPNext Resource API** (existing Zeus CRUD wrappers are optional convenience, not required):
+
+| Need | Built-in |
+|---|---|
+| Login (email/username) | `POST /api/method/login` |
+| Logout / current user | `logout`, `frappe.auth.get_logged_user` |
+| File upload | `POST /api/method/upload_file` |
+| Change password | `frappe.core.doctype.user.user.update_password` |
+| Zeus Site / Field Task / Visit Log / Journey Plan / Regularization list+get | `GET /api/resource/<DocType>` |
+| Customer, Expense Claim Type | `GET /api/resource/...` |
+| Employee Checkin / Attendance / Expense Claim (raw) | Resource API — prefer Zeus wrappers below for mobile |
+
+**Keep as Method API** (business rules not in Document.validate):
+
+`get_my_tasks`, `update_task_status`, `complete_task`, `update_checklist_item`, `get_my_plan_today`, `activate_journey_plan`, `complete_stop`, `skip_stop`, `approve_regularization`, `reject_regularization`, `get_dashboard`, `geo_verify_site`
+
+**New Method APIs** (Flutter v1): `login`, `get_session`, `checkin`, `checkout`, `get_today_attendance`, `get_attendance_history`, `get_monthly_summary`, `get_my_expenses`, `create_expense`, `submit_expense`
+
+---
+
+### Auth & session — `zeus.api.mobile`
+
+| Function | Parameters | Description |
+|---|---|---|
+| `login` | `usr`, `pwd` | Guest-allowed. Resolves `usr` as User email, username, Employee ID (`Employee.name`), or `employee_number`, then authenticates. Returns `{ full_name, session }` where `session` is the `get_session` payload. Prefer this when the client may send an Employee ID; otherwise Frappe `/api/method/login` is enough. |
+| `get_session` | — | User + Employee profile: `user`, `full_name`, `email`, `phone`, `employee`, `employee_name`, `employee_number`, `designation`, `department`, `company`, `image`, `roles` |
+| `get_dashboard` | — | Home payload: session employee, today's attendance, open tasks + counts, completed task count, journey plan, visit count, pending regularizations, pending expense count, attendance days this month |
+| `geo_verify_site` | `site_name`, `latitude`, `longitude` | `{ distance_meters, geofence_radius_meters, within_geofence }` (Haversine) |
 
 ---
 
 ### Sites — `zeus.api.site`
+
+Equivalent Resource API: `GET/POST/PUT /api/resource/Zeus Site`.
 
 | Function | Parameters | Description |
 |---|---|---|
@@ -415,26 +468,56 @@ Authentication uses Frappe session cookies or API key/secret headers (`Authoriza
 
 ---
 
-### Attendance Regularization — `zeus.api.attendance`
+### Attendance — `zeus.api.attendance`
+
+Punches write native **Employee Checkin** (`device_id` = `Zeus Mobile App`). History/summary read native **Attendance**. One IN and one OUT per day.
 
 | Function | Parameters | Description |
 |---|---|---|
-| `get_regularizations` | `employee?`, `status?`, `from_date?`, `to_date?` | List requests |
+| `checkin` | `latitude`, `longitude`, `site_name?` | IN punch; optional geofence via `site_name`. Returns `get_today_attendance`. |
+| `checkout` | `latitude`, `longitude`, `site_name?` | OUT punch. Returns `get_today_attendance`. |
+| `get_today_attendance` | — | `{ status, check_in, check_out, working_hours, attendance }`. `status` is `not_checked_in` / `checked_in` / `checked_out` / `on_leave` / `absent`. |
+| `get_attendance_history` | `from_date?`, `to_date?`, `limit?=31` | Rows with `date`, `status` (`present` / `on_leave` / `absent` / punch status), times, hours |
+| `get_monthly_summary` | `year?`, `month?` | `{ present, absent, leave, working_days }` for the calendar month |
+| `get_regularizations` | `employee?`, `status?`, `from_date?`, `to_date?` | List regularization requests |
 | `get_regularization` | `reg_name` | Single request |
 | `create_regularization` | `attendance_date`, `regularization_type`, `reason`, `requested_check_in?`, `requested_check_out?`, `employee?` | Submit regularization; defaults to current user |
-| `approve_regularization` | `reg_name`, `approver_remarks?` | Approve and trigger Attendance record creation |
+| `approve_regularization` | `reg_name`, `approver_remarks?` | Approve (Zeus Field Manager); creates/updates Attendance |
 | `reject_regularization` | `reg_name`, `approver_remarks?` | Reject request |
 
 ---
 
-### Mobile / Utility — `zeus.api.mobile`
+### Expenses — `zeus.api.expense`
+
+Wraps native **Expense Claim** (single line). Categories map to Expense Claim Type (`Travel`, `Food`, `Accommodation`, `Communication`, `Equipment`, `Other`). Status: `draft` / `submitted` / `approved` / `rejected`.
 
 | Function | Parameters | Description |
 |---|---|---|
-| `get_dashboard` | — | Returns open tasks, today's journey plan, visit count, pending regularizations for the logged-in employee |
-| `geo_verify_site` | `site_name`, `latitude`, `longitude` | Returns `{distance_meters, geofence_radius_meters, within_geofence}` using Haversine formula |
+| `get_my_expenses` | `status?`, `from_date?`, `to_date?` | Claims for the session employee |
+| `create_expense` | `title`, `amount`, `expense_date?`, `category?`, `notes?`, `receipt?`, `linked_task?`, `linked_visit_log?`, `submit?=0` | Draft claim; `receipt` is a file URL from `upload_file`; `linked_task` sets `zeus_task` |
+| `submit_expense` | `claim_name` | Submit a draft (`docstatus` 0 → 1) |
 
 ---
+
+### Roles and record scoping
+
+Roles (fixtures + `after_migrate`): **Zeus Field Staff**, **Zeus Field Manager**.
+
+`permission_query_conditions` / `has_permission` in [`zeus/permissions.py`](zeus/permissions.py) restrict:
+
+| DocType | Staff sees | Manager sees |
+|---|---|---|
+| Zeus Field Task | `assigned_to` or `assigned_by` = self | self + employees who `reports_to` them |
+| Zeus Visit Log, Journey Plan, Attendance Regularization | own `employee` | own + team |
+| Employee Checkin, Attendance, Expense Claim | own (only if the user has a Zeus role; HRMS otherwise unchanged) | own + team |
+| Zeus Site | all readable sites (no row filter) | same |
+
+System Manager and HR Manager are unrestricted. Staff cannot approve regularizations (no write). Managers have write on Zeus Attendance Regularization.
+
+Assign **Zeus Field Staff** to mobile users (in addition to HRMS **Employee**) and link `Employee.user_id`. Set `Employee.reports_to` so managers see their team.
+
+---
+
 
 ## Making Backend Changes
 

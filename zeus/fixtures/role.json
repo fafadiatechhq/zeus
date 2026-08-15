@@ -1,0 +1,18 @@
+[
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "doctype": "Role",
+  "is_custom": 0,
+  "name": "Zeus Field Staff",
+  "role_name": "Zeus Field Staff"
+ },
+ {
+  "desk_access": 1,
+  "disabled": 0,
+  "doctype": "Role",
+  "is_custom": 0,
+  "name": "Zeus Field Manager",
+  "role_name": "Zeus Field Manager"
+ }
+]

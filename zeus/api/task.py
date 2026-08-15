@@ -1,12 +1,7 @@
 import frappe
 from frappe.utils import now_datetime
 
-
-def _get_current_employee():
-	employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
-	if not employee:
-		frappe.throw(frappe._("No employee record linked to the current user"))
-	return employee
+from zeus.api.utils import get_current_employee
 
 
 @frappe.whitelist()
@@ -38,7 +33,7 @@ def get_tasks(assigned_to=None, status=None, priority=None, site=None, due_date=
 
 @frappe.whitelist()
 def get_my_tasks(status=None):
-	employee = _get_current_employee()
+	employee = get_current_employee()
 	filters = {"assigned_to": employee}
 	if status:
 		filters["status"] = status
