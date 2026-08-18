@@ -70,6 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     'assets/logo.png',
                     width: 180,
                     height: 180,
+                    fit: BoxFit.contain,
                   ),
                 ],
               ),
